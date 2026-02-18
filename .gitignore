@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# TypeScript build output
+packages/*/dist/
+
+# Swift build artifacts
+macos/CCLock/.build/
+macos/CCLock/dist/
+
+# Runtime data (user-specific, lives in ~/.cc-lock/)
+*.db
+*.log
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/

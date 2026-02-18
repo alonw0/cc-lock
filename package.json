@@ -1,0 +1,26 @@
+{
+  "name": "cc-lock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lock yourself out of Claude Code CLI",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r --parallel dev",
+    "clean": "pnpm -r clean",
+    "build:menubar": "cd macos/CCLock && swift build -c release",
+    "bundle:menubar": "bash macos/CCLock/bundle.sh",
+    "bundle:menubar:install": "bash macos/CCLock/bundle.sh --install"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3"
+  }
+}

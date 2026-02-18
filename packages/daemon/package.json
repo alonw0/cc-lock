@@ -1,0 +1,23 @@
+{
+  "name": "@cc-lock/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch --onSuccess 'node dist/index.js'",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@cc-lock/core": "workspace:*",
+    "better-sqlite3": "^11.0.0",
+    "chokidar": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0"
+  }
+}
