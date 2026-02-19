@@ -9,10 +9,16 @@ import {
   mkdirSync,
   existsSync,
   readdirSync,
+  copyFileSync,
 } from "fs";
-import { dirname, resolve, join } from "path";
+import { createRequire } from "module";
+import { dirname, join, resolve } from "path";
+import { homedir } from "os";
+import { execSync } from "child_process";
 import { CONFIG_FILE, CC_LOCK_DIR } from "@cc-lock/core";
 import type { Config } from "@cc-lock/core";
+
+const _require = createRequire(import.meta.url);
 
 class ShimManager {
   private config: Config | null = null;
@@ -45,9 +51,23 @@ class ShimManager {
     }
 
     const shimPath = config.claudeShimPath;
-    const shimContent = this.generateShimScript(config.claudeBinaryPath);
 
     try {
+      if (process.platform === "win32") {
+        const backupPath = shimPath + ".cc-lock-backup";
+        const checkJsPath = join(this.getCheckLockDir(), "check.js");
+
+        // Backup original .cmd file
+        copyFileSync(shimPath, backupPath);
+
+        // Write .cmd shim
+        writeFileSync(shimPath, this.generateWindowsShim(checkJsPath, backupPath));
+        console.log(`[shim-manager] Windows shim installed at ${shimPath}`);
+        return;
+      }
+
+      const shimContent = this.generateShimScript(config.claudeBinaryPath);
+
       // Remove existing symlink/file
       try {
         unlinkSync(shimPath);
@@ -79,6 +99,16 @@ class ShimManager {
     const realBinary = config.claudeBinaryPath;
 
     try {
+      if (process.platform === "win32") {
+        const backupPath = shimPath + ".cc-lock-backup";
+        if (existsSync(backupPath)) {
+          copyFileSync(backupPath, shimPath);
+          unlinkSync(backupPath);
+          console.log(`[shim-manager] Restored ${shimPath} from backup`);
+        }
+        return;
+      }
+
       // Remove shim
       try {
         unlinkSync(shimPath);
@@ -132,12 +162,19 @@ class ShimManager {
     console.log(`[shim-manager] Updated binary path to ${newPath}`);
   }
 
+  private getCheckLockDir(): string {
+    try {
+      // Production: @cc-lock/check-lock is installed as a dependency
+      const pkg = _require.resolve("@cc-lock/check-lock/package.json");
+      return join(dirname(pkg), "dist");
+    } catch {
+      // Development: running from the monorepo
+      return resolve(dirname(new URL(import.meta.url).pathname), "../../check-lock/dist");
+    }
+  }
+
   private generateShimScript(realBinaryPath: string): string {
-    // Resolve the check-lock package location relative to the project
-    const checkLockDir = resolve(
-      dirname(new URL(import.meta.url).pathname),
-      "../../check-lock/dist"
-    );
+    const checkLockDir = this.getCheckLockDir();
 
     return `#!/bin/bash
 # cc-lock shim - replaces claude symlink when locked
@@ -172,12 +209,27 @@ if [ -n "$EXPIRES" ]; then
   echo "Lock expires at: $LOCAL_TIME"
 fi
 
-ATTEMPTS=$(grep -o '"bypassAttempts"[[:space:]]*:[[:space:]]*[0-9]*' "$STATE_FILE" | head -1 | grep -o '[0-9]*$')
-echo "Bypass attempts this period: \${ATTEMPTS:-0}"
-echo ""
-echo "To bypass, run: cc-lock unlock"
+HARD_LOCK=$(grep -o '"hardLock"[[:space:]]*:[[:space:]]*true' "$STATE_FILE" | head -1)
+
+if [ -n "$HARD_LOCK" ]; then
+  echo "Hard lock is active — bypass is not allowed."
+  echo "Wait for the lock to expire."
+else
+  ATTEMPTS=$(grep -o '"bypassAttempts"[[:space:]]*:[[:space:]]*[0-9]*' "$STATE_FILE" | head -1 | grep -o '[0-9]*$')
+  echo "Bypass attempts this period: \${ATTEMPTS:-0}"
+  echo ""
+  echo "To bypass, run: cc-lock unlock"
+fi
 echo ""
 exit 1
+`;
+  }
+
+  private generateWindowsShim(checkJsPath: string, backupCmdPath: string): string {
+    return `@echo off
+node "${checkJsPath}"
+if %errorlevel% neq 0 exit /b 1
+call "${backupCmdPath}" %*
 `;
   }
 
@@ -189,7 +241,11 @@ exit 1
       return existing;
     }
 
-    const standalonePath = `${process.env.HOME}/.local/bin/claude`;
+    if (process.platform === "win32") {
+      return this.detectInstallationWindows();
+    }
+
+    const standalonePath = join(homedir(), ".local", "bin", "claude");
 
     // Try standalone: check if it's a symlink pointing to the real binary
     try {
@@ -201,7 +257,7 @@ exit 1
           claudeBinaryPath: realPath,
           claudeShimPath: standalonePath,
           chmodGuard: false,
-          graceMinutes: 15,
+          graceMinutes: 5,
         };
       }
 
@@ -216,7 +272,7 @@ exit 1
             claudeBinaryPath: match[1],
             claudeShimPath: standalonePath,
             chmodGuard: false,
-            graceMinutes: 15,
+            graceMinutes: 5,
           };
         }
       }
@@ -225,7 +281,7 @@ exit 1
     }
 
     // Try standalone: scan versions directory directly
-    const versionsDir = `${process.env.HOME}/.local/share/claude/versions`;
+    const versionsDir = join(homedir(), ".local", "share", "claude", "versions");
     try {
       if (existsSync(versionsDir)) {
         const versions = readdirSync(versionsDir).filter((d) => !d.startsWith("."));
@@ -246,7 +302,7 @@ exit 1
               claudeBinaryPath: binaryPath,
               claudeShimPath: standalonePath,
               chmodGuard: false,
-              graceMinutes: 15,
+              graceMinutes: 5,
             };
           }
         }
@@ -257,9 +313,9 @@ exit 1
 
     // Try npm global
     try {
-      const { execSync } = require("child_process") as typeof import("child_process");
       const npmPath = execSync("which claude 2>/dev/null", {
         encoding: "utf-8",
+        timeout: 5000,
       }).trim();
       if (npmPath && existsSync(npmPath)) {
         let realPath = npmPath;
@@ -276,11 +332,52 @@ exit 1
           claudeBinaryPath: realPath,
           claudeShimPath: npmPath,
           chmodGuard: false,
-          graceMinutes: 15,
+          graceMinutes: 5,
         };
       }
     } catch {
       // No npm installation found
+    }
+
+    return null;
+  }
+
+  private detectInstallationWindows(): Config | null {
+    // Try %APPDATA%\npm\claude.cmd (most common npm global install location)
+    const appData = process.env.APPDATA;
+    if (appData) {
+      const npmCmdPath = join(appData, "npm", "claude.cmd");
+      if (existsSync(npmCmdPath)) {
+        return {
+          installationType: "npm",
+          claudeBinaryPath: npmCmdPath,
+          claudeShimPath: npmCmdPath,
+          chmodGuard: false,
+          graceMinutes: 5,
+        };
+      }
+    }
+
+    // Fallback: where claude
+    try {
+      const output = execSync("where claude 2>nul", {
+        encoding: "utf-8",
+        timeout: 5000,
+      })
+        .trim()
+        .split("\n")[0]
+        ?.trim();
+      if (output && existsSync(output)) {
+        return {
+          installationType: "npm",
+          claudeBinaryPath: output,
+          claudeShimPath: output,
+          chmodGuard: false,
+          graceMinutes: 5,
+        };
+      }
+    } catch {
+      // No claude found
     }
 
     return null;

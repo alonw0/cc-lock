@@ -1,10 +1,36 @@
 {
   "name": "@cc-lock/tui",
   "version": "0.1.0",
-  "private": true,
+  "description": "Interactive terminal dashboard for cc-lock — built with Ink and React",
   "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/alonw0/cc-lock#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alonw0/cc-lock.git",
+    "directory": "packages/tui"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "cc-lock",
+    "tui",
+    "terminal",
+    "ink",
+    "react"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
   "main": "dist/index.js",
   "scripts": {
+    "prepack": "cp ../../LICENSE .",
     "build": "tsup",
     "dev": "tsup --watch",
     "clean": "rm -rf dist"

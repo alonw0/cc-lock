@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Text, Box, useInput } from "ink";
-import { useStats } from "../hooks/useDaemon.js";
+import { useStats, sendRequest } from "../hooks/useDaemon.js";
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`;
@@ -18,11 +18,30 @@ const PERIODS = [
 
 export function StatsScreen() {
   const [period, setPeriod] = useState<"day" | "week" | "month">("week");
-  const days = useStats(period);
+  const [confirmMode, setConfirmMode] = useState<null | "today" | "all">(null);
+  const { days, refresh } = useStats(period);
 
-  useInput((input) => {
+  useInput((input, key) => {
+    if (confirmMode !== null) {
+      if (input.toLowerCase() === "y") {
+        sendRequest({ type: "stats-reset", all: confirmMode === "all" })
+          .then(() => refresh())
+          .catch(() => {});
+        setConfirmMode(null);
+      } else if (input.toLowerCase() === "n" || key.escape) {
+        setConfirmMode(null);
+      }
+      return;
+    }
+
     const p = PERIODS.find((p) => p.key === input);
-    if (p) setPeriod(p.id);
+    if (p) {
+      setPeriod(p.id);
+      return;
+    }
+
+    if (input === "r") setConfirmMode("today");
+    else if (input === "x") setConfirmMode("all");
   });
 
   const totalSeconds = days.reduce((s, d) => s + d.totalSeconds, 0);
@@ -77,6 +96,23 @@ export function StatsScreen() {
               </Text>
             )}
           </Box>
+        </Box>
+      )}
+
+      {/* Confirm prompt */}
+      {confirmMode !== null && (
+        <Box marginTop={1} borderStyle="round" paddingX={1}>
+          <Text color="yellow">
+            {confirmMode === "today" ? "Reset today's stats?" : "Reset ALL stats?"}{" "}
+          </Text>
+          <Text>[Y] Yes  [N/Esc] Cancel</Text>
+        </Box>
+      )}
+
+      {/* Footer */}
+      {confirmMode === null && (
+        <Box marginTop={1} borderStyle="single" paddingX={1}>
+          <Text dimColor>[R] Reset today  [X] Reset all</Text>
         </Box>
       )}
     </Box>

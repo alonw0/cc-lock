@@ -98,11 +98,36 @@ export function getStatsForPeriod(
 
 export function getTodayUsageSeconds(): number {
   const today = new Date().toISOString().slice(0, 10);
-  const stmt = getDb().prepare(
-    "SELECT total_seconds FROM daily_stats WHERE date = ?"
-  );
-  const row = stmt.get(today) as { total_seconds: number } | undefined;
-  return row?.total_seconds ?? 0;
+
+  // Completed sessions stored in daily_stats
+  const completed = getDb()
+    .prepare("SELECT COALESCE(total_seconds, 0) as s FROM daily_stats WHERE date = ?")
+    .get(today) as { s: number } | undefined;
+
+  // In-progress sessions that started today (not yet ended, so not in daily_stats)
+  const inProgress = getDb()
+    .prepare(`
+      SELECT COALESCE(
+        SUM(CAST((julianday('now') - julianday(started_at)) * 86400 AS INTEGER)),
+        0
+      ) as s
+      FROM sessions
+      WHERE ended_at IS NULL
+        AND date(started_at) = ?
+    `)
+    .get(today) as { s: number } | undefined;
+
+  return (completed?.s ?? 0) + (inProgress?.s ?? 0);
+}
+
+export function resetStats(all: boolean): void {
+  if (all) {
+    getDb().exec("DELETE FROM daily_stats; DELETE FROM sessions;");
+  } else {
+    const today = new Date().toISOString().slice(0, 10);
+    getDb().prepare("DELETE FROM daily_stats WHERE date = ?").run(today);
+    getDb().prepare("DELETE FROM sessions WHERE date(started_at) = ?").run(today);
+  }
 }
 
 export function getActiveSessions(): SessionRecord[] {

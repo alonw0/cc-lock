@@ -4,13 +4,20 @@ import SwiftUI
 final class MenuBarViewModel: ObservableObject {
     @Published var lock = LockState(
         status: .unlocked, lockedAt: nil, expiresAt: nil,
-        bypassAttempts: 0, graceExpiresAt: nil, scheduleId: nil
+        bypassAttempts: 0, graceExpiresAt: nil, scheduleId: nil, hardLock: nil
     )
     @Published var todayUsageSeconds = 0
     @Published var weekStats: [DailyStats] = []
     @Published var schedules: [Schedule] = []
     @Published var connected = false
     @Published var lastError: String?
+    @Published var isStartingDaemon = false
+
+    var daemonInstalled: Bool {
+        FileManager.default.fileExists(
+            atPath: NSHomeDirectory() + "/Library/LaunchAgents/com.cc-lock.daemon.plist"
+        )
+    }
 
     private var pollTimer: Timer?
     private let client = DaemonClient.shared
@@ -30,7 +37,7 @@ final class MenuBarViewModel: ObservableObject {
         pollTimer = nil
     }
 
-    private func poll() {
+    func poll() {
         Task {
             do {
                 let status = try await client.fetchStatus()
@@ -56,7 +63,68 @@ final class MenuBarViewModel: ObservableObject {
         }
     }
 
-    func lock(minutes: Int) {
+    func startDaemon() {
+        guard !isStartingDaemon else { return }
+        isStartingDaemon = true
+        lastError = nil
+
+        Task {
+            let plistPath = NSHomeDirectory() + "/Library/LaunchAgents/com.cc-lock.daemon.plist"
+
+            if FileManager.default.fileExists(atPath: plistPath) {
+                // Plist already exists — just start/kickstart the daemon
+                let uid = String(getuid())
+                _ = await runProcess("/bin/launchctl", ["bootstrap", "gui/\(uid)", plistPath])
+                _ = await runProcess("/bin/launchctl", ["kickstart", "-k", "gui/\(uid)/com.cc-lock.daemon"])
+            } else {
+                // Plist missing — run full cc-lock install via login shell so PATH is set
+                let (status, output) = await runShell("cc-lock install")
+                if status != 0 {
+                    let lines = output.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+                    self.lastError = lines.last ?? "Install failed — is cc-lock on your PATH?"
+                    self.isStartingDaemon = false
+                    return
+                }
+            }
+
+            // Give the daemon a moment to open its socket then poll
+            try? await Task.sleep(for: .seconds(2))
+            self.poll()
+            try? await Task.sleep(for: .seconds(1))
+            self.isStartingDaemon = false
+        }
+    }
+
+    // Run a process without blocking the main actor
+    private func runProcess(_ path: String, _ args: [String]) async -> Int32 {
+        await withCheckedContinuation { continuation in
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: path)
+            p.arguments = args
+            p.terminationHandler = { continuation.resume(returning: $0.terminationStatus) }
+            try? p.run()
+        }
+    }
+
+    // Run a shell command via bash login shell; returns (exitCode, combinedOutput)
+    private func runShell(_ command: String) async -> (Int32, String) {
+        await withCheckedContinuation { continuation in
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: "/bin/bash")
+            p.arguments = ["-l", "-c", command]
+            let pipe = Pipe()
+            p.standardOutput = pipe
+            p.standardError = pipe
+            p.terminationHandler = { proc in
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8) ?? ""
+                continuation.resume(returning: (proc.terminationStatus, output))
+            }
+            try? p.run()
+        }
+    }
+
+    func applyLock(minutes: Int) {
         Task {
             do {
                 let response = try await client.lock(minutes: minutes)
@@ -97,12 +165,27 @@ struct MenuBarView: View {
             StatusSection(lock: viewModel.lock, connected: viewModel.connected)
                 .padding(.vertical, 8)
 
+            if !viewModel.connected {
+                Button(action: { viewModel.startDaemon() }) {
+                    if viewModel.isStartingDaemon {
+                        Label("Starting…", systemImage: "arrow.clockwise")
+                    } else if viewModel.daemonInstalled {
+                        Label("Start Daemon", systemImage: "play.circle")
+                    } else {
+                        Label("Install & Start Daemon", systemImage: "arrow.down.circle")
+                    }
+                }
+                .disabled(viewModel.isStartingDaemon)
+                .padding(.horizontal, 8)
+                .padding(.bottom, 6)
+            }
+
             Divider()
 
             QuickLockSection(
                 isUnlocked: viewModel.connected && viewModel.lock.status == .unlocked
             ) { minutes in
-                viewModel.lock(minutes: minutes)
+                viewModel.applyLock(minutes: minutes)
             }
             .padding(.vertical, 6)
 

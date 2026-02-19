@@ -1,0 +1,21 @@
+{
+  "name": "@cc-lock/windows-tray",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Windows system tray app for cc-lock",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc && node -e \"const fs=require('fs');fs.mkdirSync('dist/renderer',{recursive:true});fs.copyFileSync('src/renderer/index.html','dist/renderer/index.html');\"",
+    "start": "electron .",
+    "package": "electron-builder --win --x64",
+    "generate-icons": "node scripts/generate-icons.js"
+  },
+  "dependencies": {
+    "electron": "^33.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.4.0"
+  }
+}

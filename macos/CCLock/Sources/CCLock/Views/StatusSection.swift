@@ -18,8 +18,13 @@ struct StatusSection: View {
                         .foregroundColor(.green)
 
                 case .locked:
-                    Label("Claude Code is locked", systemImage: "lock.fill")
-                        .foregroundColor(.red)
+                    if lock.hardLock == true {
+                        Label("Hard locked — no bypass", systemImage: "lock.slash")
+                            .foregroundColor(.red)
+                    } else {
+                        Label("Claude Code is locked", systemImage: "lock.fill")
+                            .foregroundColor(.red)
+                    }
                     if let expiresAt = lock.expiresAt, let expiry = parseISO(expiresAt) {
                         let remaining = expiry.timeIntervalSince(now)
                         if remaining > 0 {
@@ -35,7 +40,7 @@ struct StatusSection: View {
                                 .foregroundColor(.secondary)
                         }
                     }
-                    if lock.bypassAttempts > 0 {
+                    if lock.hardLock != true && lock.bypassAttempts > 0 {
                         Text("Bypass attempts: \(lock.bypassAttempts)")
                             .font(.caption)
                             .foregroundColor(.orange)

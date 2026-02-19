@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 # cc-lock installer
-# Run from the repo root after cloning:
-#   bash install.sh
+# Fast path (npm):   curl -fsSL https://raw.githubusercontent.com/alonw0/cc-lock/main/install.sh | bash
+# Build from source: clone repo, then bash install.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CLI_SCRIPT="$SCRIPT_DIR/packages/cli/dist/index.js"
-BIN_DIR="$HOME/.local/bin"
-BIN_PATH="$BIN_DIR/cc-lock"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -25,6 +22,14 @@ check_node() {
     major=$(node -e "console.log(parseInt(process.version.slice(1)))")
     [ "$major" -ge 20 ] || die "Node.js 20+ required (found $(node --version))"
     log "Node.js $(node --version)"
+}
+
+install_via_npm() {
+    log "Installing cc-lock via npm..."
+    npm install -g cc-lock
+    log "Running cc-lock install..."
+    cc-lock install || die "Daemon setup failed. Is 'claude' installed and on PATH?"
+    print_success
 }
 
 check_pnpm() {
@@ -44,19 +49,23 @@ build_packages() {
 }
 
 link_cli() {
-    mkdir -p "$BIN_DIR"
+    local bin_dir="$HOME/.local/bin"
+    local bin_path="$bin_dir/cc-lock"
+    local cli_script="$SCRIPT_DIR/packages/cli/dist/index.js"
+
+    mkdir -p "$bin_dir"
 
     # Wrapper script — more robust than a bare symlink to a .js file
-    cat > "$BIN_PATH" <<EOF
+    cat > "$bin_path" <<EOF
 #!/usr/bin/env bash
-exec node "$CLI_SCRIPT" "\$@"
+exec node "$cli_script" "\$@"
 EOF
-    chmod +x "$BIN_PATH"
-    log "Linked: $BIN_PATH"
+    chmod +x "$bin_path"
+    log "Linked: $bin_path"
 
-    if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
+    if [[ ":$PATH:" != *":$bin_dir:"* ]]; then
         echo
-        warn "$BIN_DIR is not in your PATH."
+        warn "$bin_dir is not in your PATH."
         warn "Add this line to your shell profile (~/.zshrc or ~/.bashrc), then restart your shell:"
         warn "  export PATH=\"\$HOME/.local/bin:\$PATH\""
         echo
@@ -65,7 +74,7 @@ EOF
 
 setup_daemon() {
     log "Setting up daemon (requires claude to be installed)..."
-    "$BIN_PATH" install || die "Daemon setup failed. Is 'claude' installed and on PATH?"
+    "$HOME/.local/bin/cc-lock" install || die "Daemon setup failed. Is 'claude' installed and on PATH?"
 }
 
 build_menu_bar_app() {
@@ -98,6 +107,20 @@ main() {
     echo
 
     check_node
+
+    # Fast path: if npm is available and cc-lock is published, use npm install
+    if command -v npm &>/dev/null; then
+        local npm_version
+        npm_version=$(npm view cc-lock version 2>/dev/null || true)
+        if [ -n "$npm_version" ]; then
+            log "cc-lock $npm_version found on npm registry"
+            install_via_npm
+            return
+        fi
+    fi
+
+    # Build from source (development / pre-release)
+    log "Building from source..."
     check_pnpm
     build_packages
     link_cli

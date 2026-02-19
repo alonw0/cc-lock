@@ -15,6 +15,8 @@ export interface StatusRequest {
 export interface LockRequest {
   type: "lock";
   durationMinutes: number;
+  /** When true, bypass challenges are disabled for this lock */
+  hardLock?: boolean;
 }
 
 export interface UnlockRequest {
@@ -29,6 +31,10 @@ export interface BypassCompleteRequest {
   type: "bypass-complete";
   challengeId: string;
   answer: string;
+  /** true = paying instead of solving a challenge */
+  paymentMethod?: boolean;
+  /** Stripe Payment Intent ID (only when Stripe verification is enabled) */
+  stripePaymentIntentId?: string;
 }
 
 export interface ScheduleAddRequest {
@@ -74,6 +80,12 @@ export interface UninstallRequest {
   type: "uninstall";
 }
 
+export interface StatsResetRequest {
+  type: "stats-reset";
+  /** When true, clears all historical data. Default: today only. */
+  all?: boolean;
+}
+
 export type Request =
   | StatusRequest
   | LockRequest
@@ -85,6 +97,7 @@ export type Request =
   | ScheduleRemoveRequest
   | ScheduleToggleRequest
   | StatsRequest
+  | StatsResetRequest
   | ConfigGetRequest
   | ConfigSetRequest
   | InstallRequest
@@ -115,8 +128,16 @@ export interface UnlockResponse {
 
 export interface BypassStartResponse {
   type: "bypass-start";
+  ok: boolean;
   challengeId: string;
   challenges: Challenge[];
+  error?: string;
+  paymentOption?: {
+    amount: number;      // cents
+    currency: string;    // "USD"
+    url: string;         // browser URL to open
+    hasVerification: boolean; // true if Stripe key configured
+  };
 }
 
 export interface BypassCompleteResponse {
@@ -180,6 +201,13 @@ export interface UninstallResponse {
   error?: string;
 }
 
+export interface StatsResetResponse {
+  type: "stats-reset";
+  ok: boolean;
+  cleared: "today" | "all";
+  error?: string;
+}
+
 export interface ErrorResponse {
   type: "error";
   message: string;
@@ -196,6 +224,7 @@ export type Response =
   | ScheduleRemoveResponse
   | ScheduleToggleResponse
   | StatsResponse
+  | StatsResetResponse
   | ConfigGetResponse
   | ConfigSetResponse
   | InstallResponse

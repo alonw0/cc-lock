@@ -1,18 +1,46 @@
 {
-  "name": "@cc-lock/cli",
+  "name": "cc-lock",
   "version": "0.1.0",
-  "private": true,
+  "description": "Lock yourself out of Claude Code CLI — productivity enforcer with scheduling, usage stats, and bypass challenges",
   "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/alonw0/cc-lock#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alonw0/cc-lock.git",
+    "directory": "packages/cli"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "productivity",
+    "focus",
+    "lock",
+    "cli",
+    "terminal",
+    "self-control"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ],
   "bin": {
     "cc-lock": "dist/index.js"
   },
   "scripts": {
+    "prepack": "cp ../../LICENSE .",
     "build": "tsup",
     "dev": "tsup --watch",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@cc-lock/core": "workspace:*",
+    "@cc-lock/daemon": "workspace:*",
     "@cc-lock/tui": "workspace:*",
     "commander": "^12.0.0"
   },

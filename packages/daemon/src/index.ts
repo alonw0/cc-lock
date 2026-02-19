@@ -45,8 +45,16 @@ function handleConnection(socket: Socket) {
 
       try {
         const req = JSON.parse(line) as Request;
-        const res = handleRequest(req);
-        socket.write(JSON.stringify(res) + "\n");
+        handleRequest(req).then((res) => {
+          socket.write(JSON.stringify(res) + "\n");
+        }).catch((err) => {
+          socket.write(
+            JSON.stringify({
+              type: "error",
+              message: `Handler error: ${err instanceof Error ? err.message : String(err)}`,
+            }) + "\n"
+          );
+        });
       } catch (err) {
         socket.write(
           JSON.stringify({

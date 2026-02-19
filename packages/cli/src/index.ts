@@ -7,7 +7,7 @@ import {
   scheduleListCommand,
   scheduleRemoveCommand,
 } from "./commands/schedule.js";
-import { statsCommand } from "./commands/stats.js";
+import { statsCommand, statsResetCommand } from "./commands/stats.js";
 import { configGetCommand, configSetCommand } from "./commands/config.js";
 import { installCommand, uninstallCommand } from "./commands/install.js";
 
@@ -34,9 +34,10 @@ program
   .command("lock")
   .description("Lock Claude Code for a duration (e.g., 30m, 2h, 1d)")
   .argument("<duration>", "Lock duration (e.g., 30m, 2h, 1d)")
-  .action(async (duration: string) => {
+  .option("--hard", "Hard lock — bypass challenges are disabled")
+  .action(async (duration: string, options: { hard?: boolean }) => {
     try {
-      await lockCommand(duration);
+      await lockCommand(duration, options);
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
       process.exit(1);
@@ -126,7 +127,7 @@ config
     }
   });
 
-program
+const stats = program
   .command("stats")
   .description("Show usage statistics")
   .option("--week", "Show last 7 days")
@@ -134,6 +135,19 @@ program
   .action(async (options: { week?: boolean; month?: boolean }) => {
     try {
       await statsCommand(options);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+  });
+
+stats
+  .command("reset")
+  .description("Clear usage stats (today only by default)")
+  .option("--all", "Clear all historical stats, not just today")
+  .action(async (options: { all?: boolean }) => {
+    try {
+      await statsResetCommand(options);
     } catch (err) {
       console.error(err instanceof Error ? err.message : String(err));
       process.exit(1);

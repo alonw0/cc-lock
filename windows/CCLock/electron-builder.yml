@@ -1,0 +1,19 @@
+appId: com.cc-lock.windows-tray
+productName: CCLock
+directories:
+  output: release
+files:
+  - dist/**/*
+  - assets/**/*
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch: x64
+    - target: portable
+      arch: x64
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: false
+  createStartMenuShortcut: true

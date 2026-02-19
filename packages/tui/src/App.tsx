@@ -55,6 +55,7 @@ const LOGO_LOCKED = [
 
 export function App() {
   const [tab, setTab] = useState<Tab>("dashboard");
+  const [formActive, setFormActive] = useState(false);
   const { lock, config, todayUsage, connected, refresh } = useDaemonStatus();
   const { exit } = useApp();
 
@@ -71,7 +72,7 @@ export function App() {
         return;
       }
     }
-  });
+  }, { isActive: !formActive });
 
   const lockColor = !connected
     ? "gray"
@@ -118,8 +119,8 @@ export function App() {
         />
       )}
       {tab === "stats" && <StatsScreen />}
-      {tab === "schedules" && <SchedulesScreen />}
-      {tab === "settings" && <SettingsScreen config={config} />}
+      {tab === "schedules" && <SchedulesScreen onFormActiveChange={setFormActive} />}
+      {tab === "settings" && <SettingsScreen config={config} onRefresh={refresh} onFormActiveChange={setFormActive} />}
     </Box>
   );
 }

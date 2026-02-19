@@ -10,6 +10,18 @@ export interface Config {
   chmodGuard: boolean;
   /** Grace period in minutes after successful bypass */
   graceMinutes: number;
+  /** Days counted as "weekend" for weekends schedules (0=Sun…6=Sat). Defaults to [0,6]. */
+  weekendDays?: number[];
+  /** Allow free challenge-based bypass (default: true). Set to false to require payment bypass. */
+  challengeBypassEnabled?: boolean;
+  /** Enable payment bypass mode */
+  paymentBypassEnabled?: boolean;
+  /** Payment amount in cents (default: 500 = $5.00) */
+  paymentBypassAmount?: number;
+  /** URL to open for payment (Stripe link, Venmo, PayPal, etc.) */
+  paymentBypassUrl?: string;
+  /** Optional Stripe secret key (sk_...) for payment verification */
+  paymentBypassStripeKey?: string;
 }
 
 export type LockStatus = "unlocked" | "locked" | "grace";
@@ -26,6 +38,8 @@ export interface LockState {
   graceExpiresAt: string | null;
   /** ID of the schedule that triggered this lock, if any */
   scheduleId: string | null;
+  /** When true, bypass challenges are disabled — lock cannot be bypassed early */
+  hardLock?: boolean;
 }
 
 export interface Schedule {

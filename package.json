@@ -3,13 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "description": "Lock yourself out of Claude Code CLI",
+  "author": "Alon Wolenitz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alonw0/cc-lock.git"
+  },
+  "homepage": "https://github.com/alonw0/cc-lock#readme",
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm -r --parallel dev",
     "clean": "pnpm -r clean",
     "build:menubar": "cd macos/CCLock && swift build -c release",
+    "build:windows-tray": "pnpm --filter @cc-lock/windows-tray build",
+    "package:windows-tray": "pnpm --filter @cc-lock/windows-tray package",
     "bundle:menubar": "bash macos/CCLock/bundle.sh",
-    "bundle:menubar:install": "bash macos/CCLock/bundle.sh --install"
+    "bundle:menubar:install": "bash macos/CCLock/bundle.sh --install",
+    "bundle:menubar:dmg": "bash macos/CCLock/bundle.sh --dmg",
+    "bundle:menubar:sign": "bash macos/CCLock/bundle.sh --sign",
+    "test": "pnpm --filter @cc-lock/daemon test"
   },
   "engines": {
     "node": ">=20"
@@ -17,7 +28,8 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3",
-      "esbuild"
+      "esbuild",
+      "electron"
     ]
   },
   "devDependencies": {

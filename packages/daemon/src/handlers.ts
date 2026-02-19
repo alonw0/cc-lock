@@ -7,9 +7,9 @@ import {
   removeSchedule,
   toggleSchedule,
 } from "./schedule-eval.js";
-import { getStatsForPeriod, getTodayUsageSeconds } from "./db.js";
+import { getStatsForPeriod, getTodayUsageSeconds, resetStats } from "./db.js";
 
-export function handleRequest(req: Request): Response {
+export async function handleRequest(req: Request): Promise<Response> {
   switch (req.type) {
     case "status": {
       const lock = lockManager.getState();
@@ -18,7 +18,7 @@ export function handleRequest(req: Request): Response {
         claudeBinaryPath: "",
         claudeShimPath: "",
         chmodGuard: false,
-        graceMinutes: 15,
+        graceMinutes: 5,
       };
       return {
         type: "status",
@@ -29,7 +29,7 @@ export function handleRequest(req: Request): Response {
     }
 
     case "lock": {
-      const lock = lockManager.lock(req.durationMinutes);
+      const lock = lockManager.lock(req.durationMinutes, undefined, req.hardLock);
       return { type: "lock", ok: true, lock };
     }
 
@@ -48,12 +48,17 @@ export function handleRequest(req: Request): Response {
     }
 
     case "bypass-start": {
-      const { challengeId, challenges } = lockManager.startBypass();
-      return { type: "bypass-start", challengeId, challenges };
+      const result = lockManager.startBypass();
+      return { type: "bypass-start", ...result };
     }
 
     case "bypass-complete": {
-      const result = lockManager.completeBypass(req.challengeId, req.answer);
+      const result = await lockManager.completeBypass(
+        req.challengeId,
+        req.answer,
+        req.paymentMethod,
+        req.stripePaymentIntentId
+      );
       return { type: "bypass-complete", ...result };
     }
 
@@ -87,7 +92,7 @@ export function handleRequest(req: Request): Response {
     case "stats": {
       const now = new Date();
       let startDate: string;
-      const endDate = now.toISOString().slice(0, 10);
+      const endDate = now.toISOString().slice(0, 10); // always today (UTC)
 
       switch (req.period) {
         case "day":
@@ -107,7 +112,31 @@ export function handleRequest(req: Request): Response {
         }
       }
 
-      return { type: "stats", days: getStatsForPeriod(startDate, endDate) };
+      const days = getStatsForPeriod(startDate, endDate);
+
+      // daily_stats only has completed sessions. Replace today's entry with the
+      // live value from getTodayUsageSeconds(), which also counts the in-progress
+      // session so the weekly total reflects the current running session.
+      const todaySeconds = getTodayUsageSeconds();
+      const todayIdx = days.findIndex((d) => d.date === endDate);
+      if (todayIdx >= 0) {
+        days[todayIdx] = { ...days[todayIdx], totalSeconds: todaySeconds };
+      } else if (todaySeconds > 0) {
+        days.push({
+          date: endDate,
+          totalSeconds: todaySeconds,
+          sessionCount: 0,
+          bypassCount: 0,
+        });
+      }
+
+      return { type: "stats", days };
+    }
+
+    case "stats-reset": {
+      const all = req.all ?? false;
+      resetStats(all);
+      return { type: "stats-reset", ok: true, cleared: all ? "all" : "today" };
     }
 
     case "config-get": {
@@ -116,7 +145,7 @@ export function handleRequest(req: Request): Response {
         claudeBinaryPath: "",
         claudeShimPath: "",
         chmodGuard: false,
-        graceMinutes: 15,
+        graceMinutes: 5,
       };
       return { type: "config-get", config };
     }
@@ -160,7 +189,9 @@ export function handleRequest(req: Request): Response {
           ok: false,
           error:
             currentLock.status === "locked"
-              ? "Cannot uninstall while locked. Complete a bypass challenge first (cc-lock unlock)."
+              ? currentLock.hardLock
+                ? "Cannot uninstall while hard locked. Wait for the lock to expire."
+                : "Cannot uninstall while locked. Complete a bypass challenge first (cc-lock unlock)."
               : "Cannot uninstall during a grace period. Wait for the lock to re-engage and complete a bypass challenge.",
         };
       }

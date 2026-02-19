@@ -51,14 +51,17 @@ export function useDaemonStatus(pollMs = 2000) {
 
 export function useStats(period: "day" | "week" | "month" = "week") {
   const [days, setDays] = useState<DailyStats[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     sendRequest({ type: "stats", period })
       .then((res) => setDays((res as StatsResponse).days))
       .catch(() => {});
-  }, [period]);
+  }, [period, refreshKey]);
 
-  return days;
+  const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  return { days, refresh };
 }
 
 export function useSchedules() {

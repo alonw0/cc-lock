@@ -1,5 +1,6 @@
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { dirname } from "path";
+import https from "https";
 import {
   STATE_FILE,
   DEFAULT_GRACE_MINUTES,
@@ -89,7 +90,7 @@ class LockManager {
     return { ...this.state };
   }
 
-  lock(durationMinutes: number, scheduleId?: string): LockState {
+  lock(durationMinutes: number, scheduleId?: string, hardLock?: boolean): LockState {
     // Clear any existing timers (fresh lock always resets)
     if (this.expiryTimer) clearTimeout(this.expiryTimer);
     if (this.graceTimer) clearTimeout(this.graceTimer);
@@ -104,6 +105,7 @@ class LockManager {
       bypassAttempts: 0,
       graceExpiresAt: null,
       scheduleId: scheduleId ?? null,
+      hardLock: hardLock ?? false,
     };
 
     this.saveState();
@@ -146,31 +148,94 @@ class LockManager {
   }
 
   startBypass(): {
+    ok: boolean;
     challengeId: string;
     challenges: Challenge[];
+    error?: string;
+    paymentOption?: {
+      amount: number;
+      currency: string;
+      url: string;
+      hasVerification: boolean;
+    };
   } {
+    if (this.state.hardLock) {
+      return {
+        ok: false,
+        challengeId: "",
+        challenges: [],
+        error: "Hard lock is active — bypass is not allowed. Wait for the lock to expire.",
+      };
+    }
+
     this.state.bypassAttempts++;
     this.saveState();
 
-    const challenges = generateChallenges(this.state.bypassAttempts);
+    const config = shimManager.getConfig();
+    const challengesAllowed = config?.challengeBypassEnabled !== false;
+
+    let paymentOption:
+      | { amount: number; currency: string; url: string; hasVerification: boolean }
+      | undefined;
+    if (config?.paymentBypassEnabled && config.paymentBypassUrl) {
+      paymentOption = {
+        amount: config.paymentBypassAmount ?? 500,
+        currency: "USD",
+        url: config.paymentBypassUrl,
+        hasVerification: Boolean(config.paymentBypassStripeKey),
+      };
+    }
+
+    if (!challengesAllowed && !paymentOption) {
+      return {
+        ok: false,
+        challengeId: "",
+        challenges: [],
+        error: "Challenge bypass is disabled and no payment method is configured. Wait for the lock to expire.",
+      };
+    }
+
+    const challenges = challengesAllowed ? generateChallenges(this.state.bypassAttempts) : [];
     const challengeId = `bypass-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     pendingChallenges.set(challengeId, {
       challenges,
       createdAt: Date.now(),
     });
 
-    return { challengeId, challenges };
+    return { ok: true, challengeId, challenges, paymentOption };
   }
 
-  completeBypass(
+  async completeBypass(
     challengeId: string,
-    _answer: string
-  ): { ok: boolean; graceExpiresAt?: string; error?: string } {
-    const pending = pendingChallenges.get(challengeId);
-    if (!pending) {
-      return { ok: false, error: "Invalid or expired challenge" };
+    _answer: string,
+    paymentMethod?: boolean,
+    stripePaymentIntentId?: string
+  ): Promise<{ ok: boolean; graceExpiresAt?: string; error?: string }> {
+    if (paymentMethod) {
+      // Payment path: skip challenge lookup
+      const config = shimManager.getConfig();
+
+      // Optional Stripe verification
+      if (config?.paymentBypassStripeKey) {
+        if (!stripePaymentIntentId) {
+          return { ok: false, error: "Stripe payment intent ID required for verification" };
+        }
+        const verifyErr = await verifyStripePayment(
+          config.paymentBypassStripeKey,
+          stripePaymentIntentId
+        );
+        if (verifyErr) {
+          return { ok: false, error: verifyErr };
+        }
+      }
+    } else {
+      // Challenge path: validate challenge exists
+      const pending = pendingChallenges.get(challengeId);
+      if (!pending) {
+        return { ok: false, error: "Invalid or expired challenge" };
+      }
+      pendingChallenges.delete(challengeId);
     }
-    pendingChallenges.delete(challengeId);
 
     // Record bypass
     const today = new Date().toISOString().slice(0, 10);
@@ -238,6 +303,42 @@ class LockManager {
         : `Claude Code locked until ${timeStr}`
     );
   }
+}
+
+/** Verifies a Stripe payment intent via the Stripe REST API. Returns an error string or null. */
+function verifyStripePayment(secretKey: string, paymentIntentId: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const options = {
+      hostname: "api.stripe.com",
+      path: `/v1/payment_intents/${encodeURIComponent(paymentIntentId)}`,
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${secretKey}`,
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let body = "";
+      res.on("data", (chunk) => (body += chunk));
+      res.on("end", () => {
+        try {
+          const data = JSON.parse(body) as { status?: string; error?: { message?: string } };
+          if (data.error) {
+            resolve(`Stripe error: ${data.error.message ?? "unknown"}`);
+          } else if (data.status !== "succeeded") {
+            resolve(`Payment not completed (status: ${data.status ?? "unknown"})`);
+          } else {
+            resolve(null);
+          }
+        } catch {
+          resolve("Failed to parse Stripe response");
+        }
+      });
+    });
+
+    req.on("error", (err) => resolve(`Stripe request failed: ${err.message}`));
+    req.end();
+  });
 }
 
 export const lockManager = new LockManager();

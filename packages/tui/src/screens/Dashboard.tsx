@@ -61,6 +61,12 @@ export function Dashboard({ lock, todayUsage, connected, onRefresh }: Props) {
     if (input === "l" && lock?.status === "unlocked") {
       setMode("locking");
       setMessage(null);
+      return;
+    }
+    if (input === "r" && lock?.status === "unlocked") {
+      sendRequest({ type: "stats-reset" })
+        .then(() => onRefresh())
+        .catch(() => {});
     }
   });
 
@@ -99,7 +105,7 @@ export function Dashboard({ lock, todayUsage, connected, onRefresh }: Props) {
 
       <Box marginBottom={1}>
         <Text>Status: </Text>
-        <StatusBadge status={lock.status} />
+        <StatusBadge status={lock.status} hardLock={lock.hardLock} />
       </Box>
 
       {lock.status === "locked" && lock.expiresAt && (
@@ -109,7 +115,11 @@ export function Dashboard({ lock, todayUsage, connected, onRefresh }: Props) {
             Expires at{" "}
             {new Date(lock.expiresAt).toLocaleTimeString()}
           </Text>
-          <Text>Bypass attempts: {lock.bypassAttempts}</Text>
+          {!lock.hardLock && <Text>Bypass attempts: {lock.bypassAttempts}</Text>}
+          {lock.hardLock && <Text dimColor>No bypass allowed</Text>}
+          {!lock.hardLock && (
+            <Text dimColor>Run `cc-lock unlock` to bypass</Text>
+          )}
         </Box>
       )}
 
@@ -154,7 +164,7 @@ export function Dashboard({ lock, todayUsage, connected, onRefresh }: Props) {
       ) : (
         <Box borderStyle="single" paddingX={1}>
           <Text dimColor>
-            {lock.status === "unlocked" ? "[L] Lock  " : ""}
+            {lock.status === "unlocked" ? "[L] Lock  [R] Reset today  " : ""}
             [Q] Quit
           </Text>
         </Box>

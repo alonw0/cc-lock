@@ -7,12 +7,32 @@ import {
   getActiveSessions,
 } from "./db.js";
 
-// Track PIDs we're monitoring
-const trackedPids = new Map<number, { sessionId: number; startedAt: Date }>();
+// Wall-clock tracking: one session covers any period where ≥1 claude process
+// is running. Multiple simultaneous claude instances (servers, projects) don't
+// each add their own time — only wall-clock elapsed time is recorded.
+let currentSessionId: number | null = null;
+let currentSessionStart: Date | null = null;
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
 function getClaudePids(): number[] {
+  if (process.platform === "win32") {
+    try {
+      const output = execSync(
+        'tasklist /fi "IMAGENAME eq claude.exe" /nh /fo csv 2>nul',
+        { encoding: "utf-8", timeout: 5000 }
+      ).trim();
+      if (!output) return [];
+      return output
+        .split("\n")
+        .filter((line) => line.trim())
+        .map((line) => parseInt(line.split(",")[1]?.replace(/"/g, "") ?? "", 10))
+        .filter((n) => !isNaN(n));
+    } catch {
+      return [];
+    }
+  }
+
   try {
     // Match only the actual claude binary process, not daemons/scripts/editors
     // pgrep -x matches the exact process name "claude"
@@ -31,38 +51,43 @@ function getClaudePids(): number[] {
 }
 
 function pollSessions() {
-  const currentPids = new Set(getClaudePids());
+  const hasActive = getClaudePids().length > 0;
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
 
-  // Detect new sessions
-  for (const pid of currentPids) {
-    if (!trackedPids.has(pid)) {
-      const sessionId = recordSessionStart();
-      trackedPids.set(pid, { sessionId, startedAt: now });
+  if (hasActive && currentSessionId === null) {
+    // First claude process appeared — start a wall-clock session
+    currentSessionId = recordSessionStart();
+    currentSessionStart = now;
+  } else if (!hasActive && currentSessionId !== null) {
+    // Last claude process gone — end the session
+    const durationSeconds = Math.min(
+      Math.round((now.getTime() - currentSessionStart!.getTime()) / 1000),
+      24 * 3600
+    );
+    const startDate = currentSessionStart!.toISOString().slice(0, 10);
+    recordSessionEnd(currentSessionId);
+    if (durationSeconds > 0) {
+      updateDailyStats(startDate, durationSeconds);
     }
-  }
-
-  // Detect ended sessions
-  for (const [pid, info] of trackedPids) {
-    if (!currentPids.has(pid)) {
-      const durationSeconds = Math.round(
-        (now.getTime() - info.startedAt.getTime()) / 1000
-      );
-      recordSessionEnd(info.sessionId);
-      if (durationSeconds > 0) {
-        updateDailyStats(today, durationSeconds);
-      }
-      trackedPids.delete(pid);
-    }
+    currentSessionId = null;
+    currentSessionStart = null;
   }
 }
 
 export function startUsageTracker() {
-  // Clean up any stale active sessions from before
+  // Clean up any stale active sessions from before, crediting their elapsed time
   const stale = getActiveSessions();
+  const now = new Date();
   for (const session of stale) {
+    const startedAt = new Date(session.startedAt);
+    const durationSeconds = Math.min(
+      Math.round((now.getTime() - startedAt.getTime()) / 1000),
+      24 * 3600 // cap at 24h to guard against phantom stale sessions
+    );
     recordSessionEnd(session.id);
+    if (durationSeconds > 0) {
+      updateDailyStats(startedAt.toISOString().slice(0, 10), durationSeconds);
+    }
   }
 
   pollSessions();
@@ -75,17 +100,19 @@ export function stopUsageTracker() {
     pollInterval = null;
   }
 
-  // End all tracked sessions
-  const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  for (const [pid, info] of trackedPids) {
-    const durationSeconds = Math.round(
-      (now.getTime() - info.startedAt.getTime()) / 1000
+  // End the current wall-clock session on daemon shutdown
+  if (currentSessionId !== null) {
+    const now = new Date();
+    const durationSeconds = Math.min(
+      Math.round((now.getTime() - currentSessionStart!.getTime()) / 1000),
+      24 * 3600
     );
-    recordSessionEnd(info.sessionId);
+    const startDate = currentSessionStart!.toISOString().slice(0, 10);
+    recordSessionEnd(currentSessionId);
     if (durationSeconds > 0) {
-      updateDailyStats(today, durationSeconds);
+      updateDailyStats(startDate, durationSeconds);
     }
-    trackedPids.delete(pid);
+    currentSessionId = null;
+    currentSessionStart = null;
   }
 }

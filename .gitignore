@@ -18,3 +18,8 @@ macos/CCLock/dist/
 # Editor
 .vscode/
 .idea/
+
+# Research notes (not for public repo)
+DESKTOPLOCK.md
+.claude/
+

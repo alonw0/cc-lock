@@ -15,6 +15,7 @@ struct LockState: Codable {
     let bypassAttempts: Int
     let graceExpiresAt: String?
     let scheduleId: String?
+    let hardLock: Bool?
 }
 
 struct Config: Codable {
@@ -23,6 +24,10 @@ struct Config: Codable {
     let claudeShimPath: String
     let chmodGuard: Bool
     let graceMinutes: Int
+    let challengeBypassEnabled: Bool?
+    let paymentBypassEnabled: Bool?
+    let paymentBypassAmount: Int?
+    let paymentBypassUrl: String?
 }
 
 struct Schedule: Codable, Identifiable {

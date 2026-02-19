@@ -26,11 +26,17 @@ export function formatStatus(lock: LockState, todayUsageSeconds: number): string
       lines.push("Status: \x1b[32m● UNLOCKED\x1b[0m");
       break;
     case "locked":
-      lines.push("Status: \x1b[31m● LOCKED\x1b[0m");
+      if (lock.hardLock) {
+        lines.push("Status: \x1b[31m● HARD LOCKED\x1b[0m (no bypass)");
+      } else {
+        lines.push("Status: \x1b[31m● LOCKED\x1b[0m");
+      }
       if (lock.expiresAt) {
         lines.push(`Expires in: ${formatTimeRemaining(lock.expiresAt)}`);
       }
-      lines.push(`Bypass attempts: ${lock.bypassAttempts}`);
+      if (!lock.hardLock) {
+        lines.push(`Bypass attempts: ${lock.bypassAttempts}`);
+      }
       break;
     case "grace":
       lines.push("Status: \x1b[33m● GRACE PERIOD\x1b[0m");
@@ -83,13 +89,19 @@ export function formatSchedules(schedules: Schedule[]): string {
   return lines.join("\n");
 }
 
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 export function formatConfig(config: Config): string {
+  const weekendDays = (config.weekendDays ?? [0, 6])
+    .map((d) => DAY_NAMES[d] ?? d)
+    .join("+");
   return [
     `Installation: ${config.installationType}`,
     `Binary path: ${config.claudeBinaryPath}`,
     `Shim path: ${config.claudeShimPath}`,
     `chmod guard: ${config.chmodGuard ? "enabled" : "disabled"}`,
     `Grace period: ${config.graceMinutes} minutes`,
+    `Weekend days: ${weekendDays}`,
   ].join("\n");
 }
 
