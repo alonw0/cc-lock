@@ -101,7 +101,7 @@ When hard-locked, `cc-lock unlock` will refuse and the shim shows "Hard lock is 
 ### npm (recommended)
 
 ```bash
-npm install -g cc-lock
+npm install -g claude-lock
 cc-lock install
 ```
 
