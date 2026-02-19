@@ -47,6 +47,22 @@ cp "$BINARY"                "$BUNDLE_DIR/Contents/MacOS/$APP_NAME"
 cp "$SCRIPT_DIR/Info.plist" "$BUNDLE_DIR/Contents/Info.plist"
 chmod +x "$BUNDLE_DIR/Contents/MacOS/$APP_NAME"
 
+# Generate .icns app icon from the Swift script
+log "Generating app icon..."
+ICONSET="$SCRIPT_DIR/dist/AppIcon.iconset"
+rm -rf "$ICONSET"
+mkdir -p "$ICONSET"
+swift "$SCRIPT_DIR/scripts/generate-icon.swift" "$ICONSET"
+iconutil -c icns "$ICONSET" -o "$SCRIPT_DIR/dist/AppIcon.icns"
+cp "$SCRIPT_DIR/dist/AppIcon.icns" "$BUNDLE_DIR/Contents/Resources/AppIcon.icns"
+rm -rf "$ICONSET"
+
+# Ad-hoc sign so system APIs (e.g. UserNotifications) that require a bundle
+# identity work locally without a paid Developer ID certificate.
+# The --sign flag will be overridden below if --sign mode is used.
+log "Ad-hoc signing ${APP_NAME}.app..."
+codesign --deep --force --sign - "$BUNDLE_DIR"
+
 log "Built: $BUNDLE_DIR"
 
 # ── --install ────────────────────────────────────────────────────────────────

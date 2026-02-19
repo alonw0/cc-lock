@@ -151,6 +151,14 @@ export async function handleRequest(req: Request): Promise<Response> {
     }
 
     case "config-set": {
+      const lockState = lockManager.getState();
+      if (lockState.status === "locked" || lockState.status === "grace") {
+        return {
+          type: "config-set",
+          ok: false,
+          error: "Cannot change settings while locked.",
+        };
+      }
       const config = shimManager.getConfig();
       if (!config) {
         return { type: "config-set", ok: false, error: "No config found" };

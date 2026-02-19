@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 @MainActor
 final class MenuBarViewModel: ObservableObject {
@@ -21,9 +22,18 @@ final class MenuBarViewModel: ObservableObject {
 
     private var pollTimer: Timer?
     private let client = DaemonClient.shared
+    // nil means "first poll — don't fire notifications yet"
+    private var previousLockStatus: LockStatus? = nil
 
     func startPolling() {
         guard pollTimer == nil else { return }
+        Task {
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+                try? await center.requestAuthorization(options: [.alert, .sound])
+            }
+        }
         poll()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -37,10 +47,29 @@ final class MenuBarViewModel: ObservableObject {
         pollTimer = nil
     }
 
+    private func postNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString, content: content, trigger: nil
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
     func poll() {
         Task {
             do {
                 let status = try await client.fetchStatus()
+                let newStatus = status.lock.status
+                // Fire "lock ended" notification when transitioning from locked/grace → unlocked
+                if let prev = previousLockStatus,
+                   (prev == .locked || prev == .grace),
+                   newStatus == .unlocked {
+                    postNotification(title: "Lock ended", body: "Claude Code is now available.")
+                }
+                previousLockStatus = newStatus
                 self.lock = status.lock
                 self.todayUsageSeconds = status.todayUsageSeconds
                 self.connected = true

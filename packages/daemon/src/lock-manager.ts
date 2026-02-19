@@ -168,9 +168,6 @@ class LockManager {
       };
     }
 
-    this.state.bypassAttempts++;
-    this.saveState();
-
     const config = shimManager.getConfig();
     const challengesAllowed = config?.challengeBypassEnabled !== false;
 
@@ -186,14 +183,29 @@ class LockManager {
       };
     }
 
+    if (config?.paymentBypassEnabled && !config.paymentBypassUrl) {
+      // Payment bypass is on but misconfigured — warn but still fall through to challenges if allowed
+      if (!challengesAllowed) {
+        return {
+          ok: false,
+          challengeId: "",
+          challenges: [],
+          error: "Payment bypass is enabled but no payment URL is configured (`cc-lock config set paymentBypassUrl <url>`), and challenge bypass is also disabled.",
+        };
+      }
+    }
+
     if (!challengesAllowed && !paymentOption) {
       return {
         ok: false,
         challengeId: "",
         challenges: [],
-        error: "Challenge bypass is disabled and no payment method is configured. Wait for the lock to expire.",
+        error: "No bypass options available — both challenge and payment bypass are disabled.",
       };
     }
+
+    this.state.bypassAttempts++;
+    this.saveState();
 
     const challenges = challengesAllowed ? generateChallenges(this.state.bypassAttempts) : [];
     const challengeId = `bypass-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

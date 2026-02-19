@@ -198,7 +198,8 @@ export async function unlockCommand() {
   })) as BypassStartResponse;
 
   if (!startRes.ok) {
-    console.error(`\nBypass blocked: ${startRes.error}`);
+    const reason = startRes.error ?? "No bypass options available.";
+    console.error(`\nBypass blocked: ${reason}`);
     process.exit(1);
   }
 

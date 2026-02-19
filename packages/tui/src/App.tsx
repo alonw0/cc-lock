@@ -120,7 +120,7 @@ export function App() {
       )}
       {tab === "stats" && <StatsScreen />}
       {tab === "schedules" && <SchedulesScreen onFormActiveChange={setFormActive} />}
-      {tab === "settings" && <SettingsScreen config={config} onRefresh={refresh} onFormActiveChange={setFormActive} />}
+      {tab === "settings" && <SettingsScreen config={config} lock={lock} onRefresh={refresh} onFormActiveChange={setFormActive} />}
     </Box>
   );
 }

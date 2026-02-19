@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { Text, Box, useInput } from "ink";
-import type { Config } from "@cc-lock/core";
+import type { Config, LockState } from "@cc-lock/core";
 import { sendRequest } from "../hooks/useDaemon.js";
 import type { ConfigSetResponse } from "@cc-lock/core";
 import { TextInput } from "../components/TextInput.js";
 
 interface Props {
   config: Config | null;
+  lock: LockState | null;
   onRefresh: () => void;
   onFormActiveChange: (active: boolean) => void;
 }
@@ -15,12 +16,14 @@ type SettingRow =
   | { kind: "bool"; key: keyof Config; label: string; value: boolean }
   | { kind: "number"; key: keyof Config; label: string; value: number; unit: string };
 
-export function SettingsScreen({ config, onRefresh, onFormActiveChange }: Props) {
+export function SettingsScreen({ config, lock, onRefresh, onFormActiveChange }: Props) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+
+  const isLocked = lock?.status === "locked" || lock?.status === "grace";
 
   const rows: SettingRow[] = config
     ? [
@@ -68,10 +71,10 @@ export function SettingsScreen({ config, onRefresh, onFormActiveChange }: Props)
     onFormActiveChange(false);
   };
 
-  // Navigation and activation — disabled while editing (TextInput handles input then)
+  // Navigation and activation — disabled while editing or locked
   useInput(
     (input, key) => {
-      if (!config || pending) return;
+      if (!config || pending || isLocked) return;
 
       if (key.upArrow) {
         setSelectedIdx((i) => Math.max(0, i - 1));
@@ -120,6 +123,9 @@ export function SettingsScreen({ config, onRefresh, onFormActiveChange }: Props)
     <Box flexDirection="column" padding={1}>
       <Box marginBottom={1}>
         <Text bold>Settings</Text>
+        {isLocked && (
+          <Text color="yellow">{"  "}🔒 locked — unlock to change settings</Text>
+        )}
       </Box>
 
       {/* Read-only info */}
@@ -133,7 +139,7 @@ export function SettingsScreen({ config, onRefresh, onFormActiveChange }: Props)
       {/* Navigable / editable rows */}
       <Box marginTop={1} flexDirection="column">
         {rows.map((row, i) => {
-          const isSelected = i === selectedIdx;
+          const isSelected = i === selectedIdx && !isLocked;
           const isEditingThis = isSelected && editing && row.kind === "number";
 
           return (
@@ -141,16 +147,19 @@ export function SettingsScreen({ config, onRefresh, onFormActiveChange }: Props)
               <Text color={isSelected ? "green" : undefined}>
                 {isSelected ? "▶ " : "  "}
               </Text>
-              <Text dimColor>{row.label.padEnd(14)}</Text>
+              <Text dimColor={isLocked}>{row.label.padEnd(14)}</Text>
 
               {row.kind === "bool" && (
-                <Text color={row.value ? "green" : "red"}>
+                <Text
+                  color={isLocked ? undefined : row.value ? "green" : "red"}
+                  dimColor={isLocked}
+                >
                   {row.value ? "[✓] enabled " : "[○] disabled"}
                 </Text>
               )}
 
               {row.kind === "number" && !isEditingThis && (
-                <Text>
+                <Text dimColor={isLocked}>
                   {row.value} <Text dimColor>{row.unit}</Text>
                 </Text>
               )}
@@ -186,11 +195,13 @@ export function SettingsScreen({ config, onRefresh, onFormActiveChange }: Props)
       {/* Footer */}
       <Box marginTop={1} borderStyle="single" paddingX={1}>
         <Text dimColor>
-          {pending
-            ? "Saving..."
-            : editing
-              ? "[Enter] Save  [Esc] Cancel"
-              : "[↑/↓] Navigate  [Space/Enter] Toggle / Edit"}
+          {isLocked
+            ? "Settings are read-only while locked"
+            : pending
+              ? "Saving..."
+              : editing
+                ? "[Enter] Save  [Esc] Cancel"
+                : "[↑/↓] Navigate  [Space/Enter] Toggle / Edit"}
         </Text>
       </Box>
     </Box>
