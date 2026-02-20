@@ -18,6 +18,79 @@ function prompt(question: string): Promise<string> {
   });
 }
 
+/**
+ * Like prompt(), but runs stdin in raw mode and silently drops any chunk that
+ * arrives with more than one printable character — the unmistakable signature
+ * of a terminal paste event. Used for challenge inputs so the user must
+ * physically type every character.
+ */
+function promptNoPaste(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdout.write(question);
+
+    let input = "";
+
+    const isRaw = !!process.stdin.isRaw;
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding("utf8");
+
+    function cleanup() {
+      process.stdin.removeListener("data", onData);
+      if (!isRaw) process.stdin.setRawMode(false);
+      process.stdin.pause();
+    }
+
+    function onData(chunk: string) {
+      const code = chunk.charCodeAt(0);
+
+      // Ctrl+C / Ctrl+D
+      if (code === 3 || code === 4) {
+        process.stdout.write("\n");
+        cleanup();
+        process.exit(1);
+      }
+
+      // Enter
+      if (code === 13) {
+        process.stdout.write("\n");
+        cleanup();
+        resolve(input);
+        return;
+      }
+
+      // Backspace
+      if (code === 127 || code === 8) {
+        if (input.length > 0) {
+          input = input.slice(0, -1);
+          process.stdout.write("\b \b");
+        }
+        return;
+      }
+
+      // Escape sequences (arrow keys, F-keys, etc.) — ignore silently
+      if (code === 27) return;
+
+      // Paste detection: multiple printable characters arriving in one chunk
+      if (chunk.length > 1) {
+        process.stdout.write(" \x1b[31m[no paste]\x1b[0m");
+        setTimeout(() => {
+          process.stdout.write(`\r\x1b[K> ${input}`);
+        }, 600);
+        return;
+      }
+
+      // Single printable character
+      if (code >= 32) {
+        input += chunk;
+        process.stdout.write(chunk);
+      }
+    }
+
+    process.stdin.on("data", onData);
+  });
+}
+
 function sleep(seconds: number): Promise<void> {
   return new Promise((resolve) => {
     let remaining = seconds;
@@ -132,7 +205,7 @@ async function runChallenge(challenge: Challenge): Promise<boolean> {
       const reversed = challenge.prompt.split("").reverse().join("");
       console.log("\nType the following string \x1b[1mBACKWARDS\x1b[0m (right to left):");
       console.log(`\n  ${challenge.prompt}\n`);
-      const answer = await prompt("> ");
+      const answer = await promptNoPaste("> ");
       if (answer !== reversed) {
         console.log("\x1b[31mMismatch! Bypass failed.\x1b[0m");
         return false;
@@ -142,7 +215,7 @@ async function runChallenge(challenge: Challenge): Promise<boolean> {
 
     case "math": {
       console.log(`\nSolve: ${challenge.prompt} = ?`);
-      const answer = await prompt("> ");
+      const answer = await promptNoPaste("> ");
       if (answer !== challenge.answer) {
         console.log(`\x1b[31mWrong! Expected ${challenge.answer}\x1b[0m`);
         return false;
@@ -152,7 +225,7 @@ async function runChallenge(challenge: Challenge): Promise<boolean> {
 
     case "justification": {
       console.log(`\n${challenge.prompt}`);
-      const answer = await prompt("> ");
+      const answer = await promptNoPaste("> ");
       const wordCount = answer.split(/\s+/).filter(Boolean).length;
       if (wordCount < 50) {
         console.log(`\x1b[31mToo short! (${wordCount}/50 words)\x1b[0m`);

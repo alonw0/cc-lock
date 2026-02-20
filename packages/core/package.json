@@ -1,6 +1,6 @@
 {
   "name": "@cc-lock/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shared types, IPC protocol definitions, and challenge generators for cc-lock",
   "type": "module",
   "license": "MIT",

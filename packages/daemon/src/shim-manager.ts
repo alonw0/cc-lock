@@ -196,8 +196,40 @@ if [ "$STATUS" = "unlocked" ] || [ "$STATUS" = "grace" ]; then
 fi
 
 # Locked - show message and offer bypass
+MESSAGES=(
+  "You set this lock. You knew this moment would come. Weak."
+  "The 'quick fix' will take 4 hours. You know this."
+  "Your future self is sighing right now."
+  "This is why you can't have nice things."
+  "Incredible. You lasted... let's see... not very long."
+  "Claude doesn't need you. You need Claude. That's the problem."
+  "go touch grass"
+  "The feature can wait. Your dignity cannot."
+  "Past-you set this lock because past-you didn't trust present-you. Past-you was right."
+  "Every great developer knows when to stop. This is not that moment for you."
+  "You're not being productive. You're being addicted."
+  "The code will still be broken tomorrow. You'll just be more tired."
+  "Breaking news: local developer can't stick to a self-imposed rule for more than an hour."
+  "You locked yourself out for a reason. Try to remember what that reason was."
+  "Weak."
+  "Not even a personal best. Disappointing."
+  "The shim script has more self-control than you do."
+  "Somewhere, a rubber duck is judging you."
+  "Your plants need water. Your friends miss you. Claude will still be here tomorrow."
+  "Is this really the hill you want to die on?"
+  "You could go outside. Just a thought."
+  "The '5 more minutes' to 'midnight' pipeline is fully operational, I see."
+  "Bold move. Stupid, but bold."
+  "You and I both know this isn't about work."
+  "The lock is the boundary. You are the problem."
+  "Your therapist would not approve."
+  "A lesser person would just disable the whole thing. Oh wait."
+)
+MSG_IDX=$(( RANDOM % \${#MESSAGES[@]} ))
 echo ""
 echo "🔒 Claude Code is locked by cc-lock"
+echo ""
+echo "  \${MESSAGES[$MSG_IDX]}"
 echo ""
 
 # Check if state has expiry info
@@ -257,7 +289,7 @@ call "${backupCmdPath}" %*
           claudeBinaryPath: realPath,
           claudeShimPath: standalonePath,
           chmodGuard: false,
-          graceMinutes: 5,
+          graceMinutes: 10,
         };
       }
 
@@ -272,7 +304,7 @@ call "${backupCmdPath}" %*
             claudeBinaryPath: match[1],
             claudeShimPath: standalonePath,
             chmodGuard: false,
-            graceMinutes: 5,
+            graceMinutes: 10,
           };
         }
       }
@@ -302,7 +334,7 @@ call "${backupCmdPath}" %*
               claudeBinaryPath: binaryPath,
               claudeShimPath: standalonePath,
               chmodGuard: false,
-              graceMinutes: 5,
+              graceMinutes: 10,
             };
           }
         }
@@ -332,7 +364,7 @@ call "${backupCmdPath}" %*
           claudeBinaryPath: realPath,
           claudeShimPath: npmPath,
           chmodGuard: false,
-          graceMinutes: 5,
+          graceMinutes: 10,
         };
       }
     } catch {
@@ -353,7 +385,7 @@ call "${backupCmdPath}" %*
           claudeBinaryPath: npmCmdPath,
           claudeShimPath: npmCmdPath,
           chmodGuard: false,
-          graceMinutes: 5,
+          graceMinutes: 10,
         };
       }
     }
@@ -373,7 +405,7 @@ call "${backupCmdPath}" %*
           claudeBinaryPath: output,
           claudeShimPath: output,
           chmodGuard: false,
-          graceMinutes: 5,
+          graceMinutes: 10,
         };
       }
     } catch {

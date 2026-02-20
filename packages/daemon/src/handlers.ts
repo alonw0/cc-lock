@@ -18,7 +18,7 @@ export async function handleRequest(req: Request): Promise<Response> {
         claudeBinaryPath: "",
         claudeShimPath: "",
         chmodGuard: false,
-        graceMinutes: 5,
+        graceMinutes: 10,
       };
       return {
         type: "status",
@@ -145,7 +145,7 @@ export async function handleRequest(req: Request): Promise<Response> {
         claudeBinaryPath: "",
         claudeShimPath: "",
         chmodGuard: false,
-        graceMinutes: 5,
+        graceMinutes: 10,
       };
       return { type: "config-get", config };
     }

@@ -1,6 +1,6 @@
 {
   "name": "@cc-lock/daemon",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Background daemon for cc-lock — manages lock state, scheduling, usage tracking, and shim management",
   "type": "module",
   "license": "MIT",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createConnection } from "net";
 import { SOCKET_PATH } from "@cc-lock/core";
 import type { Request, Response, StatusResponse, StatsResponse, ScheduleListResponse } from "@cc-lock/core";
@@ -28,15 +28,25 @@ export function useDaemonStatus(pollMs = 2000) {
   const [todayUsage, setTodayUsage] = useState(0);
   const [connected, setConnected] = useState<boolean | null>(null); // null = not yet attempted
 
+  // Track previous serialised values in refs so setState is only called when
+  // something actually changed — avoids React 18 bail-out re-renders in Ink.
+  const prev = useRef({ lock: "", config: "", todayUsage: -1, connected: null as boolean | null });
+
   const refresh = useCallback(async () => {
     try {
       const res = (await sendRequest({ type: "status" })) as StatusResponse;
-      setLock(res.lock);
-      setConfig(res.config);
-      setTodayUsage(res.todayUsageSeconds);
-      setConnected(true);
+
+      const lockStr = JSON.stringify(res.lock);
+      if (lockStr !== prev.current.lock) { prev.current.lock = lockStr; setLock(res.lock); }
+
+      const configStr = JSON.stringify(res.config);
+      if (configStr !== prev.current.config) { prev.current.config = configStr; setConfig(res.config); }
+
+      if (res.todayUsageSeconds !== prev.current.todayUsage) { prev.current.todayUsage = res.todayUsageSeconds; setTodayUsage(res.todayUsageSeconds); }
+
+      if (prev.current.connected !== true) { prev.current.connected = true; setConnected(true); }
     } catch {
-      setConnected(false);
+      if (prev.current.connected !== false) { prev.current.connected = false; setConnected(false); }
     }
   }, []);
 

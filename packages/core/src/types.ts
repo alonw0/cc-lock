@@ -22,6 +22,8 @@ export interface Config {
   paymentBypassUrl?: string;
   /** Optional Stripe secret key (sk_...) for payment verification */
   paymentBypassStripeKey?: string;
+  /** Kill running claude sessions when a lock is engaged (default: false) */
+  killSessionsOnLock?: boolean;
 }
 
 export type LockStatus = "unlocked" | "locked" | "grace";
@@ -40,6 +42,8 @@ export interface LockState {
   scheduleId: string | null;
   /** When true, bypass challenges are disabled — lock cannot be bypassed early */
   hardLock?: boolean;
+  /** Resume keys of sessions killed at lock time; shown after unlock */
+  pendingResumeKeys?: string[];
 }
 
 export interface Schedule {

@@ -41,6 +41,12 @@ export function SettingsScreen({ config, lock, onRefresh, onFormActiveChange }: 
           value: config.paymentBypassEnabled ?? false,
         },
         {
+          kind: "bool",
+          key: "killSessionsOnLock",
+          label: "Kill on lock",
+          value: config.killSessionsOnLock ?? false,
+        },
+        {
           kind: "number",
           key: "graceMinutes",
           label: "Grace period",

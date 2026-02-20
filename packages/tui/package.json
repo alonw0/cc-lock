@@ -1,6 +1,6 @@
 {
   "name": "@cc-lock/tui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Interactive terminal dashboard for cc-lock — built with Ink and React",
   "type": "module",
   "license": "MIT",

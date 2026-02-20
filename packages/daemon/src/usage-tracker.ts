@@ -15,7 +15,7 @@ let currentSessionStart: Date | null = null;
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-function getClaudePids(): number[] {
+export function getClaudePids(): number[] {
   if (process.platform === "win32") {
     try {
       const output = execSync(

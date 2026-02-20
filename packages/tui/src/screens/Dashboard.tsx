@@ -143,6 +143,15 @@ export function Dashboard({ lock, todayUsage, connected, onRefresh }: Props) {
         </Text>
       </Box>
 
+      {lock.status === "unlocked" && (lock.pendingResumeKeys?.length ?? 0) > 0 && (
+        <Box marginBottom={1} flexDirection="column">
+          <Text bold>Sessions to resume:</Text>
+          {lock.pendingResumeKeys!.map((key) => (
+            <Text key={key} dimColor>  claude --resume {key}</Text>
+          ))}
+        </Box>
+      )}
+
       {message && (
         <Box marginBottom={1}>
           <Text color="yellow">{message}</Text>

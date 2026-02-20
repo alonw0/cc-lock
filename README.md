@@ -5,22 +5,14 @@ Lock yourself out of the `claude` CLI. Think Cold Turkey / Screen Time, but for 
 > Claude Code is addictive. You start a quick session, then suddenly it's midnight and you cancelled dinner with friends because you just had to ship one more feature. cc-lock gives you a hard stop — set a limit before you open it, and let it hold the line when you won't.
 
 ```
-        ___________
-       / _________ \
-      | |         | |
-      | |         | |
-  ____|_|_________|_|___
- |                      |
- |  ██████╗ ██████╗     |
- |  ██╔═══╝ ██╔═══╝     |
- |  ██║     ██║         |
- |  ██║     ██║         |
- |  ██████╗ ██████╗     |
- |  ╚═════╝ ╚═════╝     |
- |   L  O  C  K         |
- |______________________|
-     |  O  O  O  O  |
-     |______________|
+      ╭──────╮
+      │      │
+  ╔═══╧══════╧═══╗
+  ║              ║
+  ║  cc · lock   ║
+  ║              ║
+  ║  ○  ○  ○  ○  ║
+  ╚══════════════╝
 ```
 
 ## How it works
@@ -49,7 +41,7 @@ Each unlock attempt during a lock period gets progressively harder:
 | 4 | 120s cooldown, then write a 50-word justification |
 | 5+ | 300s cooldown + 5 math problems + 80-char string backwards |
 
-Successful bypass grants a **15-minute grace window**, then the lock re-engages.
+Successful bypass grants a **10-minute grace window** (configurable), then the lock re-engages.
 
 ### Payment bypass
 
@@ -218,7 +210,7 @@ cc-lock uninstall
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `graceMinutes` | integer (1–120) | `5` | How long the grace period lasts after a successful bypass before the lock re-engages |
+| `graceMinutes` | integer (1–120) | `10` | How long the grace period lasts after a successful bypass before the lock re-engages |
 | `chmodGuard` | boolean | `false` | Removes write permission from the shim so it can't be trivially replaced |
 | `weekendDays` | `sat-sun` \| `fri-sat` \| `0,6` | `sat-sun` | Which days count as "weekend" for weekend-type schedules |
 | `challengeBypassEnabled` | boolean | `true` | Allow free challenge-based bypass. Set to `false` to require payment (or block bypass entirely if no payment method is configured) |
@@ -242,6 +234,8 @@ $ claude
 
 🔒 Claude Code is locked by cc-lock
 
+  The shim script has more self-control than you do.
+
 Lock expires at: 18:43:24
 Bypass attempts this period: 0
 
@@ -254,6 +248,8 @@ With `--hard`:
 $ claude
 
 🔒 Claude Code is locked by cc-lock
+
+  Your future self is sighing right now.
 
 Lock expires at: 18:43:24
 Hard lock is active — bypass is not allowed.

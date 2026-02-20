@@ -47,6 +47,14 @@ export function formatStatus(lock: LockState, todayUsageSeconds: number): string
   }
 
   lines.push(`Today's usage: ${formatDuration(todayUsageSeconds)}`);
+
+  if (lock.pendingResumeKeys?.length) {
+    lines.push("Sessions to resume:");
+    for (const key of lock.pendingResumeKeys) {
+      lines.push(`  claude --resume ${key}`);
+    }
+  }
+
   return lines.join("\n");
 }
 

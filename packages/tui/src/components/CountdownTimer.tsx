@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Text } from "ink";
 
 interface Props {
@@ -18,17 +18,7 @@ function formatRemaining(ms: number): string {
 }
 
 export function CountdownTimer({ expiresAt, label = "Expires in" }: Props) {
-  const [remaining, setRemaining] = useState(
-    new Date(expiresAt).getTime() - Date.now()
-  );
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRemaining(new Date(expiresAt).getTime() - Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [expiresAt]);
-
+  const remaining = new Date(expiresAt).getTime() - Date.now();
   const color = remaining < 60000 ? "red" : remaining < 300000 ? "yellow" : "white";
 
   return (

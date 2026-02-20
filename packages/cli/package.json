@@ -1,6 +1,6 @@
 {
   "name": "claude-lock",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Lock yourself out of Claude Code CLI — productivity enforcer with scheduling, usage stats, and bypass challenges",
   "type": "module",
   "license": "MIT",

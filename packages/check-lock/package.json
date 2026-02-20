@@ -1,6 +1,6 @@
 {
   "name": "@cc-lock/check-lock",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shim scripts for cc-lock — fast lock checking and bypass flow invoked by the shell shim",
   "type": "module",
   "license": "MIT",

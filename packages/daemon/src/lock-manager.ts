@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { execSync } from "child_process";
 import { dirname } from "path";
 import https from "https";
 import {
@@ -10,6 +11,63 @@ import type { LockState, Challenge } from "@cc-lock/core";
 import { shimManager } from "./shim-manager.js";
 import { incrementBypassCount } from "./db.js";
 import { notify } from "./notify.js";
+import { getClaudePids } from "./usage-tracker.js";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+async function collectAndKillSessions(): Promise<string[]> {
+  const pids = getClaudePids();
+  const keys: string[] = [];
+
+  for (const pid of pids) {
+    let uuid: string | null = null;
+
+    // Try --resume <uuid> in command-line args first
+    try {
+      const args = execSync(`ps -p ${pid} -o args=`, {
+        encoding: "utf-8",
+        timeout: 3000,
+      }).trim();
+      const m = args.match(/--resume\s+([0-9a-f-]+)/);
+      if (m && UUID_RE.test(m[1]!)) {
+        uuid = m[1]!;
+      }
+    } catch {
+      // process may have exited
+    }
+
+    // Fall back to lsof on non-Windows
+    if (!uuid && process.platform !== "win32") {
+      try {
+        const lsofOut = execSync(`lsof -p ${pid} -Fn 2>/dev/null`, {
+          encoding: "utf-8",
+          timeout: 5000,
+        });
+        for (const line of lsofOut.split("\n")) {
+          const m = line.match(/\.claude\/debug\/([0-9a-f-]+)\.txt$/);
+          if (m && UUID_RE.test(m[1]!)) {
+            uuid = m[1]!;
+            break;
+          }
+        }
+      } catch {
+        // lsof not available or process gone
+      }
+    }
+
+    if (uuid && !keys.includes(uuid)) {
+      keys.push(uuid);
+    }
+
+    try {
+      process.kill(pid, "SIGTERM");
+    } catch {
+      // process may have already exited
+    }
+  }
+
+  return keys;
+}
 
 const DEFAULT_STATE: LockState = {
   status: "unlocked",
@@ -113,6 +171,17 @@ class LockManager {
     // Install shim
     shimManager.installShim();
 
+    // Kill running sessions if enabled
+    const cfg = shimManager.getConfig();
+    if (cfg?.killSessionsOnLock) {
+      void collectAndKillSessions().then((keys) => {
+        if (keys.length) {
+          this.state.pendingResumeKeys = keys;
+          this.saveState();
+        }
+      });
+    }
+
     // Set expiry timer
     if (this.expiryTimer) clearTimeout(this.expiryTimer);
     this.expiryTimer = setTimeout(
@@ -142,7 +211,9 @@ class LockManager {
       this.graceTimer = null;
     }
 
+    const keysToKeep = this.state.pendingResumeKeys;
     this.state = { ...DEFAULT_STATE };
+    if (keysToKeep?.length) this.state.pendingResumeKeys = keysToKeep;
     this.saveState();
     shimManager.removeShim();
   }

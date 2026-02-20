@@ -87,6 +87,14 @@ const SETTABLE_KEYS = {
       return raw;
     },
   },
+  killSessionsOnLock: {
+    description: "Kill running claude sessions when a lock is engaged (true/false)",
+    parse(raw: string): boolean {
+      if (raw === "true" || raw === "1" || raw === "yes") return true;
+      if (raw === "false" || raw === "0" || raw === "no") return false;
+      throw new Error("killSessionsOnLock must be true or false");
+    },
+  },
 } as const;
 
 type SettableKey = keyof typeof SETTABLE_KEYS;
@@ -102,6 +110,7 @@ export async function configGetCommand() {
   console.log(`  chmodGuard       : ${config.chmodGuard}`);
   console.log(`  weekendDays      : ${formatWeekendDays(config.weekendDays ?? [0, 6])}`);
   console.log(`  challengeBypassEnabled : ${config.challengeBypassEnabled ?? true}`);
+  console.log(`  killSessionsOnLock : ${config.killSessionsOnLock ?? false}`);
   console.log(`  paymentBypassEnabled : ${config.paymentBypassEnabled ?? false}`);
   if (config.paymentBypassEnabled) {
     const cents = config.paymentBypassAmount ?? 500;
